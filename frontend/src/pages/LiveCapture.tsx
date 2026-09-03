@@ -602,7 +602,7 @@ export const LiveCapture: React.FC = () => {
               position: 'relative',
             }}
           >
-            {rowVirtualizer.getVirtualItems().map((virtualRow) => {
+            {rowVirtualizer.getVirtualItems().map((virtualRow: any) => {
               const p = filteredPackets[virtualRow.index];
               if (!p) return null;
               const isSelected = selectedPacket?.id === p.id;
