@@ -1,0 +1,159 @@
+@import url('./design-system.css');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ── Mobile-first responsive variables ─────────────────────── */
+:root {
+  --topbar-height: 56px;
+}
+
+@media (min-width: 768px) {
+  :root {
+    --topbar-height: 64px;
+  }
+}
+
+@layer base {
+  /* Prevent horizontal overflow on mobile */
+  html, body {
+    overflow-x: hidden;
+    -webkit-text-size-adjust: 100%;
+  }
+  
+  /* Smooth scrolling with reduced-motion respect */
+  @media (prefers-reduced-motion: no-preference) {
+    html { scroll-behavior: smooth; }
+  }
+}
+
+@layer components {
+  .glass-container {
+    backdrop-filter: blur(var(--glass-blur, 16px));
+    -webkit-backdrop-filter: blur(var(--glass-blur, 16px));
+    background: var(--color-surface);
+    border: 1px solid var(--color-border-subtle);
+    border-radius: var(--radius-base, 14px);
+    padding: 1.5rem;
+  }
+
+  /* Reduce glass container padding on mobile */
+  @media (max-width: 639px) {
+    .glass-container {
+      padding: 1rem;
+      border-radius: 12px;
+    }
+  }
+
+  .neo-container {
+    background: var(--color-surface-solid);
+    border: 1px solid var(--color-border-subtle);
+    border-radius: var(--radius-base, 14px);
+    box-shadow: 4px 4px calc(var(--neo-depth, 6px) * 1.5) var(--neo-shadow-dark), -2px -2px var(--neo-depth, 6px) var(--neo-shadow-light);
+    padding: 1.5rem;
+  }
+
+  @media (max-width: 639px) {
+    .neo-container {
+      padding: 1rem;
+      border-radius: 12px;
+    }
+  }
+
+  /* ── Responsive card grid ────────────────────────────────── */
+  .responsive-grid {
+    display: grid;
+    gap: 1rem;
+    grid-template-columns: 1fr;
+  }
+
+  @media (min-width: 640px) {
+    .responsive-grid { grid-template-columns: repeat(2, 1fr); }
+  }
+
+  @media (min-width: 1024px) {
+    .responsive-grid { grid-template-columns: repeat(3, 1fr); }
+  }
+
+  @media (min-width: 1280px) {
+    .responsive-grid { grid-template-columns: repeat(4, 1fr); }
+  }
+
+  /* ── Scrollable tables on mobile ─────────────────────────── */
+  .table-responsive {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: thin;
+  }
+
+  .table-responsive::-webkit-scrollbar {
+    height: 4px;
+  }
+
+  .table-responsive::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .table-responsive::-webkit-scrollbar-thumb {
+    background: var(--color-border-subtle);
+    border-radius: 2px;
+  }
+
+  /* ── Touch-friendly buttons ──────────────────────────────── */
+  .touch-target {
+    min-height: 44px;
+    min-width: 44px;
+  }
+
+  /* ── Mobile page header ──────────────────────────────────── */
+  .page-header {
+    @apply flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4 md:mb-6;
+  }
+
+  .page-header h1 {
+    @apply text-lg sm:text-xl md:text-2xl font-extrabold text-[var(--color-text-primary)] tracking-tight;
+  }
+
+  .page-header p {
+    @apply text-xs sm:text-sm text-[var(--color-text-muted)] mt-0.5;
+  }
+
+  /* ── Card with consistent mobile styling ─────────────────── */
+  .card-base {
+    @apply rounded-xl sm:rounded-2xl border border-[var(--color-border-subtle)] p-3 sm:p-4 md:p-5;
+    background: var(--color-surface);
+  }
+
+  /* ── Full-width mobile modals ────────────────────────────── */
+  @media (max-width: 639px) {
+    .modal-overlay > .modal-content {
+      width: 100% !important;
+      max-width: 100% !important;
+      min-height: 50vh;
+      border-radius: 16px 16px 0 0 !important;
+      margin: auto 0 0 0 !important;
+    }
+  }
+}
+
+@layer utilities {
+  /* Hide on mobile, show on desktop */
+  .desktop-only {
+    @apply hidden md:block;
+  }
+
+  /* Show on mobile, hide on desktop */
+  .mobile-only {
+    @apply block md:hidden;
+  }
+
+  /* Safe area padding for notch devices */
+  .safe-bottom {
+    padding-bottom: max(1rem, env(safe-area-inset-bottom));
+  }
+
+  .safe-top {
+    padding-top: max(0px, env(safe-area-inset-top));
+  }
+}

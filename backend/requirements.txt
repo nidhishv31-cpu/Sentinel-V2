@@ -1,0 +1,9 @@
+fastapi==0.115.8
+uvicorn[standard]==0.34.0
+pydantic==2.10.6
+websockets==14.2
+scapy==2.6.1
+pyshark==0.6
+python-multipart==0.0.20
+aiohttp==3.11.12
+psutil==6.1.1

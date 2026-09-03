@@ -1,0 +1,2 @@
+cd n:\Nidhish\project\Scanner\V2\backend
+python main.py
