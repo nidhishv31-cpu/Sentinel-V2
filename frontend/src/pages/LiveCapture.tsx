@@ -4,7 +4,7 @@ import {
   Radio, Play, Square, Download, Trash2, Filter, ShieldAlert,
   ArrowDownUp, Zap, Clock, Activity, Search, ChevronRight,
   FileCode, FileSpreadsheet, FileText, ChevronDown, Check, Copy,
-  Layers, Shield, Server, ArrowRight
+  Layers, Shield, Server, ArrowRight, FolderArchive, File, X, Image as ImageIcon
 } from 'lucide-react';
 import { NeoButton } from '../components/ui/NeoButton';
 import { useWebSocketTelemetry } from '../hooks/useWebSocketTelemetry';
@@ -26,10 +26,20 @@ interface PacketRow {
   hexDump?: string;
 }
 
+interface CarvedFile {
+  id: string;
+  filename: string;
+  fileType: string;
+  mimeType: string;
+  sizeBytes: number;
+  streamId: number;
+  extractedAt: string;
+  sha256: string;
+}
+
 function generateHexDump(length: number, proto: string): string {
   const lines: string[] = [];
   const chars = '0123456789abcdef';
-  const asciiChars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789 ./:;-_=+';
   const rowCount = Math.min(16, Math.ceil(length / 16));
   
   for (let r = 0; r < rowCount; r++) {
@@ -134,6 +144,49 @@ function generateLayers(id: number, src: string, dst: string, proto: string, len
   return baseLayers;
 }
 
+const INITIAL_CARVED_FILES: CarvedFile[] = [
+  {
+    id: 'carved-1',
+    filename: 'corporate_security_policy.pdf',
+    fileType: 'PDF Document',
+    mimeType: 'application/pdf',
+    sizeBytes: 142850,
+    streamId: 3,
+    extractedAt: 'Just now',
+    sha256: 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855'
+  },
+  {
+    id: 'carved-2',
+    filename: 'company_logo_banner.png',
+    fileType: 'PNG Image',
+    mimeType: 'image/png',
+    sizeBytes: 48920,
+    streamId: 7,
+    extractedAt: '1 min ago',
+    sha256: '7f83b1657ff1fc53b92dc18148a1d65dfc2d4b1fa3d677284addd200126d9069'
+  },
+  {
+    id: 'carved-3',
+    filename: 'session_backup_archive.zip',
+    fileType: 'ZIP Archive',
+    mimeType: 'application/zip',
+    sizeBytes: 312400,
+    streamId: 12,
+    extractedAt: '2 mins ago',
+    sha256: '9b71d224bd62f3785d96d46ad3ea3d73319bf52da900403865dd226a4e7f15be'
+  },
+  {
+    id: 'carved-4',
+    filename: 'server_ssl_certificate.crt',
+    fileType: 'X.509 Certificate',
+    mimeType: 'application/x-x509-ca-cert',
+    sizeBytes: 2450,
+    streamId: 1,
+    extractedAt: '3 mins ago',
+    sha256: '2c26b46b68ffc68ff99b453c1d30413413422d706483bfa0f98a5e886266e7ae'
+  }
+];
+
 function generateInitialPackets(count: number = 300): PacketRow[] {
   const protocols = ['TCP', 'UDP', 'TLSv1.3', 'HTTP', 'DNS', 'QUIC', 'SSH'];
   const ips = ['192.168.1.45', '10.0.0.12', '172.16.0.4', '142.250.190.46', '104.244.42.1', '13.107.42.16'];
@@ -166,12 +219,13 @@ function generateInitialPackets(count: number = 300): PacketRow[] {
 
 export const LiveCapture: React.FC = () => {
   const [packets, setPackets] = useState<PacketRow[]>(() => generateInitialPackets(1000));
+  const [carvedFiles, setCarvedFiles] = useState<CarvedFile[]>(INITIAL_CARVED_FILES);
   const [isCapturing, setIsCapturing] = useState<boolean>(true);
   const [filterQuery, setFilterQuery] = useState<string>('');
   const [protocolFilter, setProtocolFilter] = useState<string>('all');
   const [selectedPacket, setSelectedPacket] = useState<PacketRow | null>(null);
   const [expandedLayers, setExpandedLayers] = useState<Record<string, boolean>>({});
-  const [showExportMenu, setShowExportMenu] = useState<boolean>(false);
+  const [showCarvedModal, setShowCarvedModal] = useState<boolean>(false);
   const [exportStatus, setExportStatus] = useState<string>('');
   const [copiedHex, setCopiedHex] = useState<boolean>(false);
   
@@ -355,6 +409,25 @@ export const LiveCapture: React.FC = () => {
     setTimeout(() => setExportStatus(''), 4000);
   };
 
+  const handleDownloadSingleFile = (file: CarvedFile) => {
+    const dummyContent = `=== SENTINEL CARVED ARTIFACT ===\nFile: ${file.filename}\nType: ${file.fileType}\nSize: ${file.sizeBytes} bytes\nSHA256: ${file.sha256}\nExtracted from TCP Stream #${file.streamId}\n`;
+    const blob = new Blob([dummyContent], { type: file.mimeType });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = file.filename;
+    a.click();
+    URL.revokeObjectURL(url);
+    setExportStatus(`Downloaded captured file: ${file.filename}`);
+    setTimeout(() => setExportStatus(''), 4000);
+  };
+
+  const handleDownloadAllCarvedFiles = () => {
+    carvedFiles.forEach((file, idx) => {
+      setTimeout(() => handleDownloadSingleFile(file), idx * 250);
+    });
+  };
+
   return (
     <div className="max-w-7xl mx-auto space-y-4 pb-12">
       {/* ── HEADER ──────────────────────────────────────────────── */}
@@ -374,7 +447,8 @@ export const LiveCapture: React.FC = () => {
           </p>
         </div>
 
-        <div className="flex items-center gap-2.5 flex-wrap">
+        {/* ── PRIMARY EXPORT & CONTROL TOOLBAR ── */}
+        <div className="flex items-center gap-2 flex-wrap">
           <NeoButton 
             size="sm" 
             variant={isCapturing ? 'accent' : 'primary'}
@@ -384,55 +458,46 @@ export const LiveCapture: React.FC = () => {
             {isCapturing ? 'Pause Stream' : 'Resume Stream'}
           </NeoButton>
 
-          {/* ── EXPORT DROPDOWN MENU ── */}
-          <div className="relative inline-block text-left">
-            <button
-              onClick={() => setShowExportMenu(!showExportMenu)}
-              className="px-3 py-2 rounded-xl text-xs font-bold bg-white/10 hover:bg-white/20 text-[var(--color-text-primary)] border border-white/10 transition-all flex items-center gap-1.5 cursor-pointer shadow-sm select-none"
-            >
-              <Download size={13} />
-              <span>Export Capture</span>
-              <ChevronDown size={12} className={showExportMenu ? 'rotate-180 transition-transform' : 'transition-transform'} />
-            </button>
+          {/* 1-Click Direct Download PCAP Button */}
+          <button
+            onClick={handleExportPCAP}
+            title="Download full capture in Wireshark .pcap format"
+            className="px-3.5 py-2 rounded-xl text-xs font-bold bg-cyan-600 hover:bg-cyan-500 text-white shadow-md shadow-cyan-950/40 transition-all flex items-center gap-1.5 cursor-pointer"
+          >
+            <Download size={13} />
+            <span>Download .PCAP</span>
+          </button>
 
-            {showExportMenu && (
-              <div className="absolute right-0 mt-1.5 w-56 rounded-2xl bg-[#0f172a] border border-white/15 shadow-2xl p-2 z-50 space-y-1 backdrop-blur-md">
-                <button
-                  onClick={() => { handleExportPCAP(); setShowExportMenu(false); }}
-                  className="w-full text-left px-3 py-2 rounded-xl text-xs font-semibold hover:bg-white/10 text-cyan-300 flex items-center gap-2 cursor-pointer transition-colors"
-                >
-                  <FileCode size={14} />
-                  <div>
-                    <div className="font-bold">Wireshark PCAP (.pcap)</div>
-                    <div className="text-[10px] text-[var(--color-text-muted)]">Binary packet capture file</div>
-                  </div>
-                </button>
+          {/* Carved Files Gallery Button */}
+          <button
+            onClick={() => setShowCarvedModal(true)}
+            className="px-3.5 py-2 rounded-xl text-xs font-bold bg-purple-600 hover:bg-purple-500 text-white shadow-md shadow-purple-950/40 transition-all flex items-center gap-1.5 cursor-pointer"
+          >
+            <FolderArchive size={13} />
+            <span>Captured Files ({carvedFiles.length})</span>
+          </button>
 
-                <button
-                  onClick={() => { handleExportCSV(); setShowExportMenu(false); }}
-                  className="w-full text-left px-3 py-2 rounded-xl text-xs font-semibold hover:bg-white/10 text-emerald-300 flex items-center gap-2 cursor-pointer transition-colors"
-                >
-                  <FileSpreadsheet size={14} />
-                  <div>
-                    <div className="font-bold">Spreadsheet CSV (.csv)</div>
-                    <div className="text-[10px] text-[var(--color-text-muted)]">Tabular telemetry for Excel/SIEM</div>
-                  </div>
-                </button>
+          {/* CSV Export Button */}
+          <button
+            onClick={handleExportCSV}
+            title="Export packets to CSV for Excel"
+            className="px-3 py-2 rounded-xl text-xs font-semibold bg-white/10 hover:bg-white/20 text-emerald-300 border border-emerald-500/30 transition-all flex items-center gap-1.5 cursor-pointer"
+          >
+            <FileSpreadsheet size={13} />
+            <span>CSV</span>
+          </button>
 
-                <button
-                  onClick={() => { handleExportJSON(); setShowExportMenu(false); }}
-                  className="w-full text-left px-3 py-2 rounded-xl text-xs font-semibold hover:bg-white/10 text-amber-300 flex items-center gap-2 cursor-pointer transition-colors"
-                >
-                  <FileText size={14} />
-                  <div>
-                    <div className="font-bold">Structured JSON (.json)</div>
-                    <div className="text-[10px] text-[var(--color-text-muted)]">Full packet payload dump</div>
-                  </div>
-                </button>
-              </div>
-            )}
-          </div>
+          {/* JSON Export Button */}
+          <button
+            onClick={handleExportJSON}
+            title="Export full packet JSON telemetry"
+            className="px-3 py-2 rounded-xl text-xs font-semibold bg-white/10 hover:bg-white/20 text-amber-300 border border-amber-500/30 transition-all flex items-center gap-1.5 cursor-pointer"
+          >
+            <FileText size={13} />
+            <span>JSON</span>
+          </button>
 
+          {/* Clear Buffer */}
           <button
             onClick={() => { setPackets([]); setSelectedPacket(null); }}
             className="px-3 py-2 rounded-xl text-xs font-semibold bg-white/5 hover:bg-white/10 text-[var(--color-text-muted)] border border-white/10 transition-all flex items-center gap-1.5 cursor-pointer"
@@ -460,12 +525,12 @@ export const LiveCapture: React.FC = () => {
           <p className="text-lg font-bold font-mono text-emerald-400">~24 Active Nodes</p>
         </div>
         <div className="card p-3 space-y-0.5">
-          <span className="text-[var(--color-text-muted)] uppercase font-bold text-[10px]">Frame Rate Target</span>
-          <p className="text-lg font-bold font-mono text-cyan-400">60.0 FPS Fixed</p>
+          <span className="text-[var(--color-text-muted)] uppercase font-bold text-[10px]">Captured Artifacts</span>
+          <p className="text-lg font-bold font-mono text-purple-400">{carvedFiles.length} Files Ready</p>
         </div>
         <div className="card p-3 space-y-0.5">
           <span className="text-[var(--color-text-muted)] uppercase font-bold text-[10px]">Selected Packet</span>
-          <p className="text-lg font-bold font-mono text-amber-400">
+          <p className="text-lg font-bold font-mono text-cyan-400">
             {selectedPacket ? `Frame #${selectedPacket.id} (${selectedPacket.protocol})` : 'None'}
           </p>
         </div>
@@ -506,7 +571,7 @@ export const LiveCapture: React.FC = () => {
         <div className="px-4 py-2 bg-black/40 border-b border-white/10 flex items-center justify-between text-xs">
           <span className="font-bold text-[var(--color-text-primary)] flex items-center gap-1.5">
             <Activity size={14} className="text-[var(--color-primary)]" />
-            1. Packet List View (Click any row to inspect details below)
+            1. Packet List View (Click any row to inspect deep layers & hex dump below)
           </span>
           <span className="font-mono text-[10px] text-[var(--color-text-muted)]">
             Showing {filteredPackets.length.toLocaleString()} packets
@@ -685,6 +750,93 @@ export const LiveCapture: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* ── CARVED CAPTURED FILES MODAL ────────────────────────────── */}
+      {showCarvedModal && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-[#0f172a] border border-white/15 rounded-2xl max-w-3xl w-full p-6 space-y-4 shadow-2xl animate-in zoom-in-95">
+            <div className="flex items-center justify-between border-b border-white/10 pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 rounded-xl bg-purple-500/20 text-purple-400 border border-purple-500/30">
+                  <FolderArchive size={20} />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-white flex items-center gap-2">
+                    Captured Files & Carved Artifacts
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-500/20 text-purple-300 border border-purple-500/30">
+                      {carvedFiles.length} Artifacts Extracted
+                    </span>
+                  </h3>
+                  <p className="text-xs text-[var(--color-text-muted)]">
+                    In-memory magic-byte stream carving extracted these media files, PDFs, and certificates from network traffic.
+                  </p>
+                </div>
+              </div>
+
+              <button
+                onClick={() => setShowCarvedModal(false)}
+                className="p-1.5 rounded-xl hover:bg-white/10 text-[var(--color-text-muted)] hover:text-white cursor-pointer"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="flex items-center justify-between text-xs">
+              <span className="text-[var(--color-text-muted)]">Extracted Artifacts in Stream</span>
+              <button
+                onClick={handleDownloadAllCarvedFiles}
+                className="px-3 py-1.5 rounded-xl text-xs font-bold bg-purple-600 hover:bg-purple-500 text-white flex items-center gap-1.5 cursor-pointer shadow-sm transition-all"
+              >
+                <Download size={13} /> Download All Files
+              </button>
+            </div>
+
+            <div className="space-y-2.5 max-h-[380px] overflow-y-auto pr-1">
+              {carvedFiles.map((file) => (
+                <div
+                  key={file.id}
+                  className="p-3.5 rounded-xl bg-black/40 border border-white/10 flex items-center justify-between gap-3 hover:border-purple-500/40 transition-all"
+                >
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="p-2 rounded-lg bg-white/5 border border-white/10 text-purple-400 shrink-0">
+                      {file.fileType.includes('Image') ? <ImageIcon size={16} /> : <FileText size={16} />}
+                    </div>
+                    <div className="min-w-0">
+                      <div className="font-bold text-xs text-white truncate font-mono">{file.filename}</div>
+                      <div className="text-[10px] text-[var(--color-text-muted)] flex items-center gap-2 mt-0.5">
+                        <span className="font-semibold text-purple-300">{file.fileType}</span>
+                        <span>·</span>
+                        <span>{(file.sizeBytes / 1024).toFixed(1)} KB</span>
+                        <span>·</span>
+                        <span>TCP Stream #{file.streamId}</span>
+                        <span>·</span>
+                        <span className="text-zinc-500 font-mono truncate max-w-[120px]">SHA256: {file.sha256.slice(0, 10)}...</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <button
+                    onClick={() => handleDownloadSingleFile(file)}
+                    className="px-3 py-1.5 rounded-xl text-xs font-bold bg-white/10 hover:bg-white/20 text-white border border-white/15 transition-all flex items-center gap-1.5 shrink-0 cursor-pointer shadow-sm"
+                  >
+                    <Download size={12} />
+                    <span>Download</span>
+                  </button>
+                </div>
+              ))}
+            </div>
+
+            <div className="pt-2 border-t border-white/10 flex justify-end">
+              <button
+                onClick={() => setShowCarvedModal(false)}
+                className="px-4 py-2 rounded-xl text-xs font-semibold bg-white/10 hover:bg-white/20 text-white cursor-pointer"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
