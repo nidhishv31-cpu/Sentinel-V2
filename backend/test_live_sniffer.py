@@ -104,5 +104,44 @@ class TestLiveSnifferAndForensics(unittest.TestCase):
         self.assertEqual(res.json()["severity"], "SUSPICIOUS")
         print("[OK] All Live Capture FastAPI REST endpoints verified (200 OK)")
 
+    def test_07_carved_stream_files_endpoints(self):
+        # 1. Clear carved files
+        res = self.client.delete("/api/live-capture/carved-files")
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.json()["count"], 0)
+
+        # 2. Check empty carved files list
+        res = self.client.get("/api/live-capture/carved-files")
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.json()["count"], 0)
+        self.assertEqual(res.json()["files"], [])
+
+        # 3. Simulate real wire transfer of a PNG file
+        res = self.client.post("/api/live-capture/simulate-transfer", json={"file_type": "png"})
+        self.assertEqual(res.status_code, 200)
+        carved = res.json().get("carved_file")
+        self.assertIsNotNone(carved)
+        file_id = carved["id"]
+        self.assertEqual(carved["fileType"], "PNG Image")
+        self.assertEqual(carved["verdict"], "CLEAN")
+
+        # 4. GET /api/live-capture/carved-files
+        res = self.client.get("/api/live-capture/carved-files")
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.json()["count"], 1)
+
+        # 5. GET /api/live-capture/carved-files/{file_id}/preview
+        res = self.client.get(f"/api/live-capture/carved-files/{file_id}/preview")
+        self.assertEqual(res.status_code, 200)
+        self.assertTrue(res.json()["is_image"])
+        self.assertIsNotNone(res.json()["image_data_uri"])
+
+        # 6. GET /api/live-capture/carved-files/{file_id}/download
+        res = self.client.get(f"/api/live-capture/carved-files/{file_id}/download")
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.headers["content-type"], "image/png")
+        self.assertTrue(len(res.content) > 0)
+        print(f"[OK] Live Stream File Carving: Real wire PNG carved ({len(res.content)} bytes, verified download & preview)")
+
 if __name__ == "__main__":
     unittest.main()

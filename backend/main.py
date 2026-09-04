@@ -6,7 +6,8 @@ import logging
 from typing import Dict, Any, List, Optional
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, BackgroundTasks, Query, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, StreamingResponse
+import base64
+from fastapi.responses import JSONResponse, StreamingResponse, Response
 from pydantic import BaseModel
 
 from engine_websocket import telemetry_hub
@@ -177,8 +178,8 @@ async def get_capture_interfaces():
 async def start_live_capture(req: Dict[str, Any]):
     interface = req.get("interface", "default")
     bpf_filter = req.get("bpf_filter", "")
-    live_sniffer_engine.current_interface = interface
-    live_sniffer_engine.is_sniffing = True
+    loop = asyncio.get_running_loop()
+    live_sniffer_engine.start_sniffing(interface=interface, bpf_filter=bpf_filter, loop=loop)
     return {
         "status": "capturing",
         "interface": interface,
@@ -189,8 +190,71 @@ async def start_live_capture(req: Dict[str, Any]):
 
 @app.post("/api/live-capture/stop")
 async def stop_live_capture():
-    live_sniffer_engine.is_sniffing = False
+    live_sniffer_engine.stop_sniffing()
     return {"status": "stopped", "interface": live_sniffer_engine.current_interface}
+
+@app.get("/api/live-capture/carved-files")
+async def get_carved_files():
+    return {
+        "count": len(live_sniffer_engine.carved_files),
+        "files": live_sniffer_engine.get_carved_files()
+    }
+
+@app.get("/api/live-capture/carved-files/{file_id}/download")
+async def download_carved_file(file_id: str):
+    payload = live_sniffer_engine.get_carved_payload(file_id)
+    if payload is None:
+        raise HTTPException(status_code=404, detail="Carved file not found")
+    meta = next((f for f in live_sniffer_engine.carved_files if f["id"] == file_id), None)
+    filename = meta["filename"] if meta else f"{file_id}.bin"
+    mime = meta["mimeType"] if meta else "application/octet-stream"
+    return Response(
+        content=payload,
+        media_type=mime,
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'}
+    )
+
+@app.get("/api/live-capture/carved-files/{file_id}/preview")
+async def preview_carved_file(file_id: str):
+    payload = live_sniffer_engine.get_carved_payload(file_id)
+    if payload is None:
+        raise HTTPException(status_code=404, detail="Carved file not found")
+    meta = next((f for f in live_sniffer_engine.carved_files if f["id"] == file_id), None)
+    mime = meta["mimeType"] if meta else "application/octet-stream"
+    is_image = mime.startswith("image/")
+    
+    image_uri = None
+    if is_image:
+        image_uri = f"data:{mime};base64,{base64.b64encode(payload).decode()}"
+
+    text_preview = None
+    if "text" in mime or "json" in mime or "cert" in mime or "javascript" in mime:
+        text_preview = payload[:5000].decode("utf-8", errors="replace")
+
+    hex_dump = []
+    for i in range(0, min(len(payload), 256), 16):
+        chunk = payload[i:i+16]
+        hex_str = " ".join(f"{b:02x}" for b in chunk)
+        ascii_str = "".join(chr(b) if 32 <= b <= 126 else "." for b in chunk)
+        hex_dump.append(f"{i:04x}  {hex_str:<48}  |{ascii_str}|")
+
+    return {
+        "file": meta,
+        "is_image": is_image,
+        "image_data_uri": image_uri,
+        "text_content": text_preview,
+        "hex_dump": hex_dump
+    }
+
+@app.delete("/api/live-capture/carved-files")
+async def clear_carved_files():
+    live_sniffer_engine.clear_carved_files()
+    return {"status": "cleared", "count": 0}
+
+@app.post("/api/live-capture/simulate-transfer")
+async def simulate_wire_transfer(req: Dict[str, Any]):
+    file_type = req.get("file_type", "png")
+    return live_sniffer_engine.simulate_wire_transfer(file_type)
 
 @app.get("/api/live-capture/stream/{stream_id}")
 async def get_stream_dialogue(stream_id: int):

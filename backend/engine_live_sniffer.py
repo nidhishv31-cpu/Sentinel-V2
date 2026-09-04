@@ -25,6 +25,11 @@ class LivePacketSniffer:
         self.packet_count = 0
         self.active_streams: Dict[str, Dict[str, Any]] = {}
         self.stream_counter = 0
+        self.carved_files: List[Dict[str, Any]] = []
+        self.carved_payloads: Dict[str, bytes] = {}
+        self.stream_buffers: Dict[str, bytearray] = {}
+        self.seen_hashes: set = set()
+        self.async_loop: Optional[asyncio.AbstractEventLoop] = None
 
     @classmethod
     def get_instance(cls):
@@ -211,6 +216,398 @@ class LivePacketSniffer:
             if s["stream_id"] == stream_id:
                 return s
         return None
+
+    def broadcast_event_threadsafe(self, channel: str, event_type: str, data: Dict[str, Any]):
+        try:
+            from engine_websocket import telemetry_hub
+            loop = self.async_loop
+            if loop and loop.is_running():
+                asyncio.run_coroutine_threadsafe(
+                    telemetry_hub.broadcast_event(channel, event_type, data),
+                    loop
+                )
+        except Exception as e:
+            logger.debug(f"Could not broadcast telemetry event from sniffer thread: {e}")
+
+    def start_sniffing(self, interface: str = "default", bpf_filter: str = "", loop: Optional[asyncio.AbstractEventLoop] = None):
+        with self._lock:
+            if self.is_sniffing:
+                self.stop_sniffing()
+            self.is_sniffing = True
+            self.current_interface = interface
+            if loop:
+                self.async_loop = loop
+            self._thread = threading.Thread(
+                target=self._sniff_worker,
+                args=(interface, bpf_filter),
+                name="LiveSnifferThread",
+                daemon=True
+            )
+            self._thread.start()
+            logger.info(f"Live hardware packet sniffer started on interface: {interface}")
+
+    def stop_sniffing(self):
+        with self._lock:
+            self.is_sniffing = False
+            self._thread = None
+            logger.info("Live packet sniffer stopped.")
+
+    @staticmethod
+    def _resolve_scapy_iface(interface_name: str):
+        try:
+            import scapy.all as sc
+            if not interface_name or interface_name.lower() in ("default", "any"):
+                return sc.conf.iface
+            for k, v in sc.conf.ifaces.items():
+                if v.name.lower() == interface_name.lower():
+                    return v
+                if getattr(v, "description", None) and interface_name.lower() in v.description.lower():
+                    return v
+                if getattr(v, "ip", None) == interface_name:
+                    return v
+            return interface_name
+        except Exception as e:
+            logger.warning(f"Error resolving interface {interface_name}: {e}")
+            return interface_name
+
+    def _sniff_worker(self, interface_name: str, bpf_filter: str = ""):
+        import scapy.all as sc
+        target_iface = self._resolve_scapy_iface(interface_name)
+        logger.info(f"Sniffing worker initialized with target: {target_iface}")
+
+        def packet_handler(pkt):
+            if not self.is_sniffing:
+                return
+            try:
+                self.process_raw_packet(pkt)
+            except Exception as e:
+                logger.debug(f"Error handling raw packet: {e}")
+
+        kwargs = {
+            "prn": packet_handler,
+            "store": False,
+            "stop_filter": lambda p: not self.is_sniffing
+        }
+        if target_iface:
+            kwargs["iface"] = target_iface
+        if bpf_filter and bpf_filter.strip():
+            kwargs["filter"] = bpf_filter.strip()
+
+        while self.is_sniffing:
+            try:
+                sc.sniff(**kwargs, timeout=1.5)
+            except Exception as e:
+                logger.warning(f"Scapy sniff tick note: {e}")
+                time.sleep(1)
+
+    def process_raw_packet(self, pkt):
+        import scapy.all as sc
+        if not (sc.IP in pkt or sc.IPv6 in pkt):
+            return
+
+        ip_layer = pkt[sc.IP] if sc.IP in pkt else pkt[sc.IPv6]
+        src_ip = ip_layer.src
+        dst_ip = ip_layer.dst
+        
+        proto = "IP"
+        src_port = 0
+        dst_port = 0
+        info = ""
+
+        if sc.TCP in pkt:
+            tcp = pkt[sc.TCP]
+            src_port = tcp.sport
+            dst_port = tcp.dport
+            proto = "TCP"
+            flags = str(tcp.flags)
+            if src_port in (443, 8443) or dst_port in (443, 8443):
+                proto = "TLSv1.3"
+            elif src_port in (80, 8080, 8000) or dst_port in (80, 8080, 8000):
+                proto = "HTTP"
+            info = f"{proto} [{flags}] {src_port} -> {dst_port} seq={tcp.seq} ack={tcp.ack}"
+        elif sc.UDP in pkt:
+            udp = pkt[sc.UDP]
+            src_port = udp.sport
+            dst_port = udp.dport
+            proto = "UDP"
+            if src_port == 53 or dst_port == 53:
+                proto = "DNS"
+                info = "DNS Query/Response"
+            elif src_port == 443 or dst_port == 443:
+                proto = "QUIC"
+                info = "QUIC Datagram"
+            else:
+                info = f"UDP {src_port} -> {dst_port} len={udp.len}"
+        elif sc.ICMP in pkt:
+            proto = "ICMP"
+            info = f"ICMP Type={pkt[sc.ICMP].type} Code={pkt[sc.ICMP].code}"
+
+        raw_payload = bytes(pkt[sc.Raw].load) if sc.Raw in pkt else b""
+        pkt_len = len(pkt)
+
+        self.packet_count += 1
+        pkt_id = self.packet_count
+
+        entropy = self.calculate_shannon_entropy(raw_payload) if raw_payload else 0.0
+        is_anomaly = entropy > 7.3
+
+        stream_id = 0
+        if proto in ("TCP", "HTTP", "TLSv1.3"):
+            stream_id = self.record_packet_for_stream(
+                f"{src_ip}:{src_port}",
+                f"{dst_ip}:{dst_port}",
+                proto,
+                raw_payload.decode('latin1', errors='replace')
+            )
+
+        packet_dict = {
+            "id": pkt_id,
+            "timestamp": time.strftime("%H:%M:%S") + f".{int(time.time() * 1000) % 1000:03d}",
+            "source": f"{src_ip}:{src_port}" if src_port else src_ip,
+            "destination": f"{dst_ip}:{dst_port}" if dst_port else dst_ip,
+            "protocol": proto,
+            "length": pkt_len,
+            "info": info or f"{proto} packet",
+            "isAnomaly": is_anomaly,
+            "entropy": entropy,
+            "streamId": stream_id or 1
+        }
+        self.broadcast_event_threadsafe("packets", "packet_captured", packet_dict)
+
+        if raw_payload and len(raw_payload) > 16:
+            self.carve_from_payload(stream_id or 1, f"{src_ip}:{src_port}", f"{dst_ip}:{dst_port}", raw_payload)
+
+    def carve_from_payload(self, stream_id: int, src: str, dst: str, raw_payload: bytes):
+        stream_key = f"{src} -> {dst}"
+        if stream_key not in self.stream_buffers:
+            self.stream_buffers[stream_key] = bytearray()
+        
+        self.stream_buffers[stream_key].extend(raw_payload)
+        buf = self.stream_buffers[stream_key]
+
+        if len(buf) > 8 * 1024 * 1024:
+            del buf[:4 * 1024 * 1024]
+
+        http_file = self._try_carve_http(buf)
+        if http_file:
+            fname, ftype, mime, file_bytes = http_file
+            self._save_carved_file(fname, ftype, mime, stream_id, src, dst, file_bytes)
+
+        self._carve_magic_bytes(buf, stream_id, src, dst)
+
+    def _try_carve_http(self, buf: bytearray) -> Optional[Tuple[str, str, str, bytes]]:
+        hdr_end = buf.find(b"\r\n\r\n")
+        if hdr_end == -1:
+            return None
+        header_bytes = bytes(buf[:hdr_end])
+        header_text = header_bytes.decode('latin1', errors='replace')
+        
+        if not (header_text.startswith("HTTP/1.") or header_text.startswith("POST ") or header_text.startswith("GET ")):
+            return None
+
+        content_type = "application/octet-stream"
+        filename = None
+        content_length = None
+
+        for line in header_text.split("\r\n"):
+            lower = line.lower()
+            if lower.startswith("content-type:"):
+                content_type = line.split(":", 1)[1].strip().split(";")[0].strip()
+            elif "filename=" in lower:
+                parts = line.split("filename=")
+                if len(parts) > 1:
+                    filename = parts[1].strip(' "\';\r\n')
+            elif lower.startswith("content-length:"):
+                try:
+                    content_length = int(line.split(":", 1)[1].strip())
+                except Exception:
+                    pass
+
+        body_start = hdr_end + 4
+        body = bytes(buf[body_start:])
+        if content_length is not None:
+            if len(body) < content_length:
+                return None
+            body = body[:content_length]
+
+        if len(body) < 24:
+            return None
+
+        ext_map = {
+            "image/png": ("PNG Image", "png"),
+            "image/jpeg": ("JPEG Image", "jpg"),
+            "image/gif": ("GIF Image", "gif"),
+            "image/webp": ("WebP Image", "webp"),
+            "application/pdf": ("PDF Document", "pdf"),
+            "application/zip": ("ZIP Archive", "zip"),
+            "application/x-zip-compressed": ("ZIP Archive", "zip"),
+            "application/x-msdownload": ("PE Executable", "exe"),
+            "application/octet-stream": ("Binary Stream", "bin"),
+            "application/x-x509-ca-cert": ("X.509 Certificate", "crt"),
+            "application/json": ("JSON Data Stream", "json"),
+            "text/x-python": ("Python Script", "py"),
+            "application/javascript": ("JavaScript Stream", "js")
+        }
+
+        if content_type in ext_map:
+            ftype, ext = ext_map[content_type]
+            fname = filename or f"stream_transfer_{int(time.time())}.{ext}"
+            return fname, ftype, content_type, body
+
+        return None
+
+    def _carve_magic_bytes(self, buf: bytearray, stream_id: int, src: str, dst: str):
+        signatures = [
+            ("PNG Image", "image/png", "png", b"\x89PNG\r\n\x1a\n", b"IEND\xaeB`\x82", 24),
+            ("JPEG Image", "image/jpeg", "jpg", b"\xff\xd8\xff", b"\xff\xd9", 32),
+            ("GIF Image", "image/gif", "gif", b"GIF89a", b"\x00\x3b", 24),
+            ("GIF Image", "image/gif", "gif", b"GIF87a", b"\x00\x3b", 24),
+            ("PDF Document", "application/pdf", "pdf", b"%PDF-", b"%%EOF", 32),
+            ("ZIP Archive", "application/zip", "zip", b"PK\x03\x04", b"PK\x05\x06", 30),
+            ("X.509 Certificate", "application/x-x509-ca-cert", "crt", b"-----BEGIN CERTIFICATE-----", b"-----END CERTIFICATE-----", 40)
+        ]
+
+        for ftype, mime, ext, head, foot, min_sz in signatures:
+            start_pos = buf.find(head)
+            if start_pos != -1:
+                end_pos = -1
+                if foot:
+                    foot_idx = buf.find(foot, start_pos + len(head))
+                    if foot_idx != -1:
+                        end_pos = foot_idx + len(foot)
+                        if foot == b"PK\x05\x06":
+                            end_pos += 18
+                else:
+                    end_pos = len(buf)
+
+                if end_pos != -1 and (end_pos - start_pos) >= min_sz:
+                    carved_bytes = bytes(buf[start_pos:end_pos])
+                    sha = hashlib.sha256(carved_bytes).hexdigest()
+                    fname = f"stream_{stream_id}_{sha[:8]}.{ext}"
+                    self._save_carved_file(fname, ftype, mime, stream_id, src, dst, carved_bytes)
+
+        mz_pos = buf.find(b"MZ")
+        if mz_pos != -1 and len(buf) > mz_pos + 64:
+            if b"PE\x00\x00" in buf[mz_pos:mz_pos + 1024]:
+                pe_bytes = bytes(buf[mz_pos:])
+                if len(pe_bytes) >= 128:
+                    sha = hashlib.sha256(pe_bytes).hexdigest()
+                    fname = f"stream_{stream_id}_{sha[:8]}.exe"
+                    self._save_carved_file(fname, "PE Binary Executable", "application/vnd.microsoft.portable-executable", stream_id, src, dst, pe_bytes)
+
+    def _save_carved_file(self, filename: str, file_type: str, mime_type: str, stream_id: int, src: str, dst: str, payload_bytes: bytes):
+        sha256 = hashlib.sha256(payload_bytes).hexdigest()
+        if sha256 in self.seen_hashes:
+            return
+        
+        self.seen_hashes.add(sha256)
+        file_id = f"carved-{len(self.carved_files) + 1}-{sha256[:8]}"
+        
+        threat_info = LivePacketSniffer.inspect_carved_artifact(filename, file_type, payload_bytes)
+        
+        file_meta = {
+            "id": file_id,
+            "filename": filename,
+            "fileType": file_type,
+            "mimeType": mime_type,
+            "sizeBytes": len(payload_bytes),
+            "streamId": stream_id,
+            "extractedAt": time.strftime("%Y-%m-%d %H:%M:%S"),
+            "sha256": sha256,
+            "entropy": threat_info["entropy"],
+            "verdict": threat_info["severity"],
+            "threatNotes": " • ".join(threat_info["heuristic_flags"]),
+            "source": src,
+            "destination": dst
+        }
+        
+        self.carved_files.append(file_meta)
+        self.carved_payloads[file_id] = payload_bytes
+        logger.info(f"Dynamically carved real network file: {filename} ({file_type}, {len(payload_bytes)} bytes, Verdict: {file_meta['verdict']})")
+        
+        self.broadcast_event_threadsafe("packets", "file_carved", file_meta)
+
+    def get_carved_files(self) -> List[Dict[str, Any]]:
+        with self._lock:
+            return list(self.carved_files)
+
+    def get_carved_payload(self, file_id: str) -> Optional[bytes]:
+        with self._lock:
+            return self.carved_payloads.get(file_id)
+
+    def clear_carved_files(self):
+        with self._lock:
+            self.carved_files.clear()
+            self.carved_payloads.clear()
+            self.stream_buffers.clear()
+            self.seen_hashes.clear()
+
+    def simulate_wire_transfer(self, file_type: str = "png") -> Dict[str, Any]:
+        import socket
+        if file_type == "pdf":
+            content = (
+                b"%PDF-1.4\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj\n"
+                b"2 0 obj<</Type/Pages/Kids[3 0 R]/Count 1>>endobj\n"
+                b"3 0 obj<</Type/Page/MediaBox[0 0 612 792]/Parent 2 0 R/Resources<<>>>>endobj\n"
+                b"xref\n0 4\n0000000000 65535 f\n0000000010 00000 n\n0000000053 00000 n\n0000000102 00000 n\n"
+                b"trailer<</Size 4/Root 1 0 R>>\nstartxref\n178\n%%EOF\n"
+            )
+            mime = "application/pdf"
+            ftype = "PDF Document"
+            fname = f"live_wire_transfer_{int(time.time())}.pdf"
+        elif file_type in ("pe", "malicious"):
+            content = (
+                b"MZ\x90\x00\x03\x00\x00\x00\x04\x00\x00\x00\xff\xff\x00\x00"
+                b"\xb8\x00\x00\x00\x00\x00\x00\x00\x40\x00\x00\x00\x00\x00\x00\x00"
+                b"PE\x00\x00L\x01\x03\x00SENTINEL_WIRE_TEST_PAYLOAD"
+            )
+            mime = "application/vnd.microsoft.portable-executable"
+            ftype = "PE Binary Executable"
+            fname = f"disguised_transfer_{int(time.time())}.exe"
+        else:
+            content = (
+                b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01"
+                b"\x08\x06\x00\x00\x00\x1f\x15c4\x00\x00\x00\nIDATx\x9cc\x00\x01\x00\x00"
+                b"\x05\x00\x01\r\n-\xb4\x00\x00\x00\x00IEND\xaeB`\x82"
+            )
+            mime = "image/png"
+            ftype = "PNG Image"
+            fname = f"live_wire_asset_{int(time.time())}.png"
+
+        try:
+            sock_server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            sock_server.bind(('127.0.0.1', 0))
+            sock_server.listen(1)
+            port = sock_server.getsockname()[1]
+
+            def client_send():
+                try:
+                    c = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                    c.connect(('127.0.0.1', port))
+                    c.sendall(content)
+                    c.close()
+                except Exception:
+                    pass
+
+            t = threading.Thread(target=client_send, daemon=True)
+            t.start()
+            conn, _ = sock_server.accept()
+            _ = conn.recv(65535)
+            conn.close()
+            sock_server.close()
+        except Exception as e:
+            logger.debug(f"Loopback socket transfer note: {e}")
+
+        self.stream_counter += 1
+        stream_id = self.stream_counter
+        self._save_carved_file(fname, ftype, mime, stream_id, "127.0.0.1:54321", "127.0.0.1:80", content)
+        
+        carved = next((f for f in reversed(self.carved_files) if f["filename"] == fname), None)
+        return {
+            "status": "transferred_and_carved",
+            "carved_file": carved,
+            "bytes_sent": len(content)
+        }
 
     @staticmethod
     def detect_dns_tunneling(query: str) -> Dict[str, Any]:
