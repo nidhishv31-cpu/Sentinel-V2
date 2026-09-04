@@ -20,6 +20,10 @@
 
 Engineered with a **FastAPI asynchronous backend** and a **React 19 / TypeScript 60 FPS virtualized frontend**, Sentinel bridges the gap between low-level packet dissection (Wireshark-grade deep analysis) and modern automated security workflows (AI-driven incident briefing, MITRE ATT&CK mapping, and automated firewall/IDS rule generation).
 
+### 📑 Enterprise Technical Documentation & Deliverables
+- 📄 **Executive Technical Report (.docx):** [`Sentinel_Enterprise_v2_Technical_Report.docx`](Sentinel_Enterprise_v2_Technical_Report.docx) — Complete 45 KB enterprise architecture specification, tech stack rationale, and DFIR playbook.
+- 📊 **Executive Presentation Deck (.pptx):** [`Sentinel_Enterprise_v2_Presentation.pptx`](Sentinel_Enterprise_v2_Presentation.pptx) — 16:9 widescreen presentation with vector architecture diagrams, bento container flows, and comprehensive speaker notes.
+
 ---
 
 ## 🏛️ System Architecture
