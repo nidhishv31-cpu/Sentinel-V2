@@ -26,8 +26,8 @@ export const NeoButton: React.FC<NeoButtonProps> = ({
 
   const variantStyles = {
     default: 'neo-button text-[var(--color-text-primary)]',
-    primary: 'neo-button text-white !bg-[var(--color-primary)] !border-[var(--color-primary)] shadow-lg shadow-[var(--color-primary-glow)] hover:!brightness-110',
-    accent: 'neo-button text-white !bg-[var(--color-secondary)] !border-[var(--color-secondary)] shadow-lg shadow-[var(--color-secondary-glow)] hover:!brightness-110',
+    primary: 'neo-button text-[var(--color-primary-contrast)] !bg-[var(--color-primary)] !border-[var(--color-primary)] shadow-lg shadow-[var(--color-primary-glow)] hover:!brightness-110',
+    accent: 'neo-button text-[var(--color-secondary-contrast)] !bg-[var(--color-secondary)] !border-[var(--color-secondary)] shadow-lg shadow-[var(--color-secondary-glow)] hover:!brightness-110',
     inset: 'neo-button active neo-button-inset',
   }[variant];
 

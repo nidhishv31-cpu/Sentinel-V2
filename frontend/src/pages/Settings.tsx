@@ -24,20 +24,25 @@ const SECTIONS = [
 ];
 
 export const THEMES: { id: ColorPalette; name: string; mode: 'dark' | 'light'; bg: string; primary: string; desc: string }[] = [
-  { id: 'dark-premium', name: 'Obsidian Emerald (Default)', mode: 'dark', bg: '#06080c', primary: '#10b981', desc: 'High-contrast dark theme with emerald highlights' },
-  { id: 'apple-dark',   name: 'macOS Sonoma Dark',         mode: 'dark', bg: '#000000', primary: '#2997ff', desc: 'Minimalist deep black with crisp Apple typography' },
-  { id: 'apple-light',  name: 'Apple Light Clean',         mode: 'light', bg: '#ffffff', primary: '#0071e3', desc: 'Crisp, high-contrast light theme for bright environments' },
-  { id: 'cool-tech',    name: 'Electric Cyan',             mode: 'dark', bg: '#050d18', primary: '#0ea5e9', desc: 'Deep navy background with vibrant cyan accents' },
-  { id: 'vibrant',      name: 'Cyberpunk Violet',          mode: 'dark', bg: '#0a0614', primary: '#a855f7', desc: 'Neon violet palette tailored for spatial defense' },
-  { id: 'sunset-ops',   name: 'Sunset Ops',                mode: 'dark', bg: '#14080a', primary: '#f43f5e', desc: 'High-alert rose and amber contrast theme' },
-  { id: 'custom',       name: 'Custom Theme Studio',       mode: 'dark', bg: '#090d16', primary: '#06b6d4', desc: 'Fully personalized color system with live color picker' }
+  { id: 'dark-premium',  name: 'Obsidian Emerald (Default)', mode: 'dark',  bg: '#06080c', primary: '#10b981', desc: 'High-contrast dark theme with emerald highlights' },
+  { id: 'google-secops', name: 'Google SecOps (Chromium)',   mode: 'dark',  bg: '#131317', primary: '#4d8efe', desc: 'Material Design 3 cloud command center with Chromium fluid aura' },
+  { id: 'sentinel',      name: 'Microsoft Sentinel',         mode: 'dark',  bg: '#0e1321', primary: '#00f5d4', desc: 'Cloud-native SIEM/SOAR cyber defense with liquid glass obsidian waves' },
+  { id: 'apple-dark',    name: 'macOS Sonoma Dark',          mode: 'dark',  bg: '#000000', primary: '#2997ff', desc: 'Minimalist deep black with crisp Apple typography' },
+  { id: 'apple-light',   name: 'Apple Light Clean',          mode: 'light', bg: '#ffffff', primary: '#0071e3', desc: 'Crisp, high-contrast light theme for bright environments' },
+  { id: 'cool-tech',     name: 'Electric Cyan',              mode: 'dark',  bg: '#050d18', primary: '#0ea5e9', desc: 'Deep navy background with vibrant cyan accents' },
+  { id: 'vibrant',       name: 'Cyberpunk Violet',           mode: 'dark',  bg: '#0a0614', primary: '#a855f7', desc: 'Neon violet palette tailored for spatial defense' },
+  { id: 'sunset-ops',    name: 'Sunset Ops',                 mode: 'dark',  bg: '#14080a', primary: '#f43f5e', desc: 'High-alert rose and amber contrast theme' },
+  { id: 'aurora',        name: 'Holographic Aurora',         mode: 'dark',  bg: '#080718', primary: '#d946ef', desc: 'Iridescent multi-stop gradient with holographic depth' },
+  { id: 'custom',        name: 'Custom Theme Studio',        mode: 'dark',  bg: '#090d16', primary: '#06b6d4', desc: 'Fully personalized color system with live color picker' }
 ];
 
 export const PRIMARY_FONTS: { id: FontTheme; name: string; desc: string; sample: string }[] = [
-  { id: 'jakarta',   name: 'Plus Jakarta Sans', desc: 'Modern Neo-Grotesque UI standard with high legibility', sample: 'The quick brown fox jumps over the lazy dog 12345' },
-  { id: 'inter',     name: 'Inter',             desc: 'Global industry standard for crisp, readable UI text', sample: 'The quick brown fox jumps over the lazy dog 12345' },
-  { id: 'sfpro',     name: 'SF Pro',            desc: 'Apple system typography with optical size balancing', sample: 'The quick brown fox jumps over the lazy dog 12345' },
-  { id: 'jetbrains', name: 'JetBrains Mono',    desc: 'Developer monospace font with high-contrast glyphs', sample: 'CVE-2026-8812: buffer_overflow(payload)' }
+  { id: 'jakarta',    name: 'Plus Jakarta Sans',          desc: 'Modern Neo-Grotesque UI standard with high legibility', sample: 'The quick brown fox jumps over the lazy dog 12345' },
+  { id: 'inter',      name: 'Inter',                      desc: 'Global industry standard for crisp, readable UI text', sample: 'The quick brown fox jumps over the lazy dog 12345' },
+  { id: 'robotoflex', name: 'Roboto Flex (Google)',       desc: 'Adaptive variable typography with high-density legibility', sample: 'Google SecOps Enterprise Command Center 2026' },
+  { id: 'space',      name: 'Space Grotesk (Sentinel)',   desc: 'Futuristic cyber defense monospace & display pairing', sample: 'SIEM//SOAR Cloud-Native Cyber Defense Core 4624' },
+  { id: 'sfpro',      name: 'SF Pro',                     desc: 'Apple system typography with optical size balancing', sample: 'The quick brown fox jumps over the lazy dog 12345' },
+  { id: 'jetbrains',  name: 'JetBrains Mono',             desc: 'Developer monospace font with high-contrast glyphs', sample: 'CVE-2026-8812: buffer_overflow(payload)' }
 ];
 
 export const Settings: React.FC<{ initialSection?: string }> = ({ initialSection = 'appearance' }) => {

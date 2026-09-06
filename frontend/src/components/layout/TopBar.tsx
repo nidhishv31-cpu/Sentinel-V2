@@ -2,10 +2,11 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import {
   Menu, Search, RefreshCw, Bell,
-  ShieldAlert, Plus, Settings as SettingsIcon, X
+  ShieldAlert, Plus, Settings as SettingsIcon, X, Sliders
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useUIStore } from '../../store/uiStore';
+import { useThemeStore } from '../../store/themeStore';
 import { useQueryClient } from '@tanstack/react-query';
 
 const ROUTE_LABELS: Record<string, string> = {
@@ -53,6 +54,7 @@ function useClickOutside(ref: React.RefObject<HTMLElement | null>, onClose: () =
 
 export const TopBar: React.FC = () => {
   const { toggleSidebar, toggleMobileDrawer, searchQuery, setSearchQuery } = useUIStore();
+  const { setBlenderOpen } = useThemeStore();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const location = useLocation();
@@ -180,7 +182,7 @@ export const TopBar: React.FC = () => {
         {/* Quick New Scan */}
         <button
           onClick={() => navigate('/scans')}
-          className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold text-white bg-gradient-to-r from-[var(--color-primary)] to-[var(--color-secondary)] hover:opacity-90 shadow-md shadow-[var(--color-primary-glow)] transition-all active:scale-95 cursor-pointer min-h-[36px]"
+          className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold text-[var(--color-primary-contrast)] bg-[var(--color-primary)] hover:opacity-90 shadow-md shadow-[var(--color-primary-glow)] transition-all active:scale-95 cursor-pointer min-h-[36px]"
         >
           <Plus size={13} />
           <span>New Scan</span>
@@ -229,6 +231,16 @@ export const TopBar: React.FC = () => {
             )}
           </AnimatePresence>
         </div>
+
+        {/* Theme Blender */}
+        <button
+          onClick={() => setBlenderOpen(true)}
+          className="p-2 rounded-xl transition-colors hover:bg-white/10 active:scale-95 text-[var(--color-text-muted)] hover:text-[var(--color-primary)] cursor-pointer min-h-[44px] min-w-[44px] flex items-center justify-center"
+          aria-label="Theme & Style Blender"
+          title="UI/UX Theme Blender"
+        >
+          <Sliders size={16} />
+        </button>
 
         {/* Settings */}
         <button

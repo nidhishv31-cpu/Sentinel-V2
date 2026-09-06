@@ -74,12 +74,16 @@ export const Sidebar: React.FC = () => {
                   <div key={item.id} className="relative">
                     <button
                       onClick={() => {
-                        if (hasChildren) {
+                        if (isCollapsed) {
+                          navigate(item.href);
+                        } else if (hasChildren) {
                           setExpanded(isExpanded ? null : item.id);
                         } else {
                           navigate(item.href);
                         }
                       }}
+                      aria-label={item.label}
+                      title={isCollapsed ? item.label : undefined}
                       className={`w-full flex items-center gap-3 px-3 py-2 rounded-xl text-xs font-semibold transition-all relative min-h-[36px] ${
                         isActive
                           ? 'text-[var(--color-primary)] font-bold shadow-sm'
@@ -222,7 +226,7 @@ export const Sidebar: React.FC = () => {
               animate={{ x: 0 }}
               exit={{ x: '-100%' }}
               transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
-              className="md:hidden fixed left-0 top-0 z-50 w-[280px] max-w-[85vw] h-full flex flex-col overflow-hidden border-r border-[var(--color-border)]"
+              className="md:hidden fixed left-0 top-0 z-50 w-[280px] max-w-[85vw] h-full flex flex-col overflow-hidden border-r border-[var(--color-border)] backdrop-blur-2xl"
               style={{ background: 'var(--color-surface)' }}
             >
               {sidebarContent(true)}

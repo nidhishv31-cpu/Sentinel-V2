@@ -11,7 +11,9 @@ export type ColorPalette =
   | 'custom'
   | 'ios-dark'
   | 'apple-light'
-  | 'apple-dark';
+  | 'apple-dark'
+  | 'sentinel'
+  | 'google-secops';
 
 export type DeviceFrameMode = 'desktop' | 'tablet' | 'mobile';
 
@@ -22,6 +24,7 @@ export type FontTheme =
   | 'anthropic' 
   | 'jetbrains' 
   | 'roboto' 
+  | 'robotoflex'
   | 'outfit' 
   | 'sora' 
   | 'fira' 
@@ -104,6 +107,44 @@ export const defaultCustomTheme: CustomThemeColors = {
 };
 
 export const CUSTOM_PRESETS: Record<string, { name: string; colors: CustomThemeColors }> = {
+  googleSecops: {
+    name: 'Google Cloud SecOps',
+    colors: {
+      bgBase: '#131317',
+      bgGradientEnd: '#0e0e12',
+      surface: '#1f1f23',
+      surfaceSolid: '#2a2a2e',
+      surfaceOverlay: '#353439',
+      border: '#4d8efe',
+      borderSubtle: 'rgba(66, 71, 83, 0.5)',
+      textPrimary: '#e4e1e7',
+      textSecondary: '#c2c6d5',
+      textMuted: '#8c909f',
+      primary: '#4d8efe',
+      primaryContrast: '#00285c',
+      secondary: '#6ddd81',
+      accent: '#ffb4ab'
+    }
+  },
+  microsoftSentinel: {
+    name: 'Microsoft Sentinel (SIEM/SOAR)',
+    colors: {
+      bgBase: '#060b19',
+      bgGradientEnd: '#0e1321',
+      surface: '#0e1321',
+      surfaceSolid: '#161b2a',
+      surfaceOverlay: '#242a39',
+      border: '#00f5d4',
+      borderSubtle: 'rgba(58, 74, 70, 0.45)',
+      textPrimary: '#dde2f6',
+      textSecondary: '#bec5e5',
+      textMuted: '#b9cac4',
+      primary: '#00f5d4',
+      primaryContrast: '#00382f',
+      secondary: '#0078d4',
+      accent: '#ffb4ab'
+    }
+  },
   midnightGold: {
     name: 'Midnight Gold & Amber',
     colors: {
@@ -198,10 +239,10 @@ export const FONT_DEFINITIONS: Record<string, { name: string; body: string; disp
     category: 'Google Fonts'
   },
   space: {
-    name: 'Space Grotesk (Cyber Tech)',
+    name: 'Space Grotesk & Space Mono (Microsoft Sentinel)',
     body: "'Space Grotesk', system-ui, sans-serif",
     display: "'Space Grotesk', system-ui, sans-serif",
-    mono: "'JetBrains Mono', monospace",
+    mono: "'Space Mono', 'JetBrains Mono', monospace",
     category: 'Google Fonts'
   },
   anthropic: {
@@ -222,6 +263,13 @@ export const FONT_DEFINITIONS: Record<string, { name: string; body: string; disp
     name: 'Roboto (Google Classic)',
     body: "'Roboto', system-ui, sans-serif",
     display: "'Roboto', system-ui, sans-serif",
+    mono: "'JetBrains Mono', monospace",
+    category: 'Google Fonts'
+  },
+  robotoflex: {
+    name: 'Roboto Flex (Google Cloud SecOps)',
+    body: "'Roboto Flex', 'Roboto', system-ui, sans-serif",
+    display: "'Roboto Flex', 'Roboto', system-ui, sans-serif",
     mono: "'JetBrains Mono', monospace",
     category: 'Google Fonts'
   },
@@ -376,6 +424,7 @@ export function applyThemeVariables(
         --color-secondary-glow: ${secondaryGlow} !important;
         --color-accent: ${customTheme.accent} !important;
         --color-accent-contrast: #ffffff !important;
+        --color-text: ${customTheme.textPrimary} !important;
       }
     `;
   } else {

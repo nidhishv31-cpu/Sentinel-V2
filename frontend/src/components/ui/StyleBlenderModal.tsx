@@ -1,8 +1,8 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Sliders, X, Sparkles, Check, RefreshCw, Eye, 
-  ShieldAlert, Zap, Activity, Sun, Flame, Terminal, Wand2, Type, Apple
+  ShieldAlert, Zap, Activity, Sun, Flame, Terminal, Wand2, Type, Apple, Shield, ShieldCheck
 } from 'lucide-react';
 import { 
   useThemeStore, 
@@ -12,6 +12,8 @@ import {
 } from '../../store/themeStore';
 
 const PALETTES: { id: ColorPalette; name: string; icon: any; bg: string; primary: string; desc: string }[] = [
+  { id: 'google-secops', name: 'Google Cloud SecOps', icon: ShieldCheck, bg: '#131317', primary: '#4d8efe', desc: 'Material Design 3 cloud command center' },
+  { id: 'sentinel', name: 'Microsoft Sentinel', icon: Shield, bg: '#0e1321', primary: '#00f5d4', desc: 'Cloud-native SIEM/SOAR cyber defense core' },
   { id: 'dark-premium', name: 'Obsidian Emerald', icon: ShieldAlert, bg: '#06080c', primary: '#10b981', desc: 'Sleek dark cyber defense' },
   { id: 'vibrant', name: 'Cyberpunk Violet', icon: Zap, bg: '#0a0614', primary: '#a855f7', desc: 'Neon violet spatial grid' },
   { id: 'cool-tech', name: 'Electric Cyan', icon: Activity, bg: '#050d18', primary: '#0ea5e9', desc: 'Deep ocean network stream' },
@@ -28,6 +30,7 @@ const FONTS_LIST: { id: FontTheme; name: string }[] = [
   { id: 'jakarta', name: 'Plus Jakarta Sans' },
   { id: 'inter', name: 'Inter' },
   { id: 'space', name: 'Space Grotesk' },
+  { id: 'robotoflex', name: 'Roboto Flex (Google SecOps)' },
   { id: 'anthropic', name: 'Newsreader (Anthropic)' },
   { id: 'jetbrains', name: 'JetBrains Mono' },
   { id: 'roboto', name: 'Roboto' },
@@ -40,12 +43,30 @@ const FONTS_LIST: { id: FontTheme; name: string }[] = [
 export const StyleBlenderModal: React.FC = () => {
   const { palette, setPalette, blender, updateBlender, resetBlender, isBlenderOpen, setBlenderOpen } = useThemeStore();
 
+  useEffect(() => {
+    if (!isBlenderOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setBlenderOpen(false);
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isBlenderOpen, setBlenderOpen]);
+
   if (!isBlenderOpen) return null;
 
   return (
     <AnimatePresence>
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-md">
+      <div 
+        className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-md"
+        onClick={(e) => {
+          if (e.target === e.currentTarget) setBlenderOpen(false);
+        }}
+        role="presentation"
+      >
         <motion.div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="blender-modal-title"
           initial={{ opacity: 0, scale: 0.9, y: 20 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.9, y: 20 }}
@@ -59,17 +80,18 @@ export const StyleBlenderModal: React.FC = () => {
                 <Sliders className="w-5 h-5" />
               </div>
               <div>
-                <h2 className="text-xl font-bold font-display text-[var(--color-text-primary)]">
+                <h2 id="blender-modal-title" className="text-xl font-bold font-display text-[var(--color-text-primary)]">
                   UI/UX Style Blender & Global Theme Engine
                 </h2>
                 <p className="text-xs text-[var(--color-text-muted)]">
-                  Customize 7 color systems, 10 fonts, glass blur & tactile depth in real time
+                  Customize 10 color systems, 10 fonts, glass blur & tactile depth in real time
                 </p>
               </div>
             </div>
             <button
               onClick={() => setBlenderOpen(false)}
               className="p-2 rounded-xl text-[var(--color-text-muted)] hover:text-[var(--color-text-primary)] hover:bg-white/10 transition-colors cursor-pointer"
+              aria-label="Close theme blender"
             >
               <X className="w-5 h-5" />
             </button>
@@ -80,7 +102,7 @@ export const StyleBlenderModal: React.FC = () => {
             <div>
               <label className="text-xs font-bold uppercase tracking-wider text-[var(--color-text-secondary)] mb-3 flex items-center gap-2">
                 <Sparkles className="w-4 h-4 text-[var(--color-primary)]" />
-                Select Color Palette (7 Themes)
+                Select Color Palette (10 Themes)
               </label>
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5">
                 {PALETTES.map((p) => {

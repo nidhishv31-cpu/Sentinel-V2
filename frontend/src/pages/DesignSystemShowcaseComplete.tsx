@@ -4,7 +4,7 @@ import {
   Sparkles, Sliders, AlertTriangle, Box, Cpu, Layers, 
   Palette, Eye, CheckCircle2, ShieldAlert, ArrowRight, 
   Zap, Copy, Check, MousePointer, Activity, ToggleLeft, ToggleRight,
-  Info, ExternalLink, RefreshCw, Terminal, Sun, Flame, Wand2, Grid3X3, Apple
+  Info, ExternalLink, RefreshCw, Terminal, Sun, Flame, Wand2, Grid3X3, Apple, Shield, ShieldCheck
 } from 'lucide-react';
 
 /* ==========================================================================
@@ -327,6 +327,8 @@ export const DESIGN_SYSTEM_STYLES = `
 `;
 
 export const PALETTES_LIST = [
+  { id: 'google-secops', name: 'Google Cloud SecOps', icon: ShieldCheck, bg: '#131317', primary: '#4d8efe', desc: 'Material Design 3 cloud command center' },
+  { id: 'sentinel', name: 'Microsoft Sentinel', icon: Shield, bg: '#0e1321', primary: '#00f5d4', desc: 'Cloud-native SIEM/SOAR cyber defense core' },
   { id: 'dark-premium', name: 'Obsidian Emerald', icon: ShieldAlert, bg: '#06080c', primary: '#10b981', desc: 'Sleek dark cyber defense' },
   { id: 'vibrant', name: 'Cyberpunk Violet', icon: Zap, bg: '#0a0614', primary: '#a855f7', desc: 'Neon violet spatial grid' },
   { id: 'cool-tech', name: 'Electric Cyan', icon: Activity, bg: '#050d18', primary: '#0ea5e9', desc: 'Deep ocean network stream' },
